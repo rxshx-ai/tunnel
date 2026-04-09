@@ -115,6 +115,39 @@ if %errorlevel% neq 0 (
 )
 
 :: -------------------------------------------------------
+:: Install as startup task (runs for all users on boot)
+:: -------------------------------------------------------
+if /i "%1"=="--install" (
+    echo.
+    echo   Installing as Windows startup task for all users...
+    schtasks /create /tn "CS Tutor" /tr "python \"%~dp0app.py\"" /sc onlogon /rl highest /f >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo   [OK] Startup task created! App will auto-start on login.
+        echo.
+        echo   Manage with:
+        echo     schtasks /query /tn "CS Tutor"
+        echo     schtasks /run /tn "CS Tutor"
+        echo     schtasks /end /tn "CS Tutor"
+        echo     schtasks /delete /tn "CS Tutor" /f   (remove from startup)
+    ) else (
+        echo   [ERROR] Failed. Run this .bat as Administrator.
+    )
+    echo.
+    pause
+    exit /b 0
+)
+
+if /i "%1"=="--uninstall" (
+    echo.
+    echo   Removing startup task...
+    schtasks /delete /tn "CS Tutor" /f >nul 2>&1
+    echo   [OK] Startup task removed.
+    echo.
+    pause
+    exit /b 0
+)
+
+:: -------------------------------------------------------
 :: Launch the app
 :: -------------------------------------------------------
 cd /d "%~dp0"
