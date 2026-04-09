@@ -3,55 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oracle SQL Assistant</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <title>Assistant</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/c.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { background:#1a1a2e; color:#e0e0e0; font-family:system-ui,sans-serif; height:100vh; display:flex; flex-direction:column; }
-        #chat { flex:1; overflow-y:auto; padding:16px; }
-        .msg { max-width:800px; margin:0 auto 16px; }
-        .msg.user .bubble { background:#16213e; border:1px solid #0f3460; border-radius:12px; padding:12px 16px; white-space:pre-wrap; }
-        .msg.assistant .bubble { background:#0f0f23; border:1px solid #1a1a3e; border-radius:12px; padding:16px; line-height:1.6; }
-        .msg.assistant .bubble pre { background:#0d1117; border-radius:8px; padding:12px; overflow-x:auto; margin:8px 0; position:relative; }
-        .msg.assistant .bubble code { font-family:'Cascadia Code','Fira Code',monospace; font-size:13px; }
-        .msg.assistant .bubble p { margin:6px 0; }
-        .msg.assistant .bubble h1,.msg.assistant .bubble h2,.msg.assistant .bubble h3 { color:#e94560; margin:12px 0 6px; }
-        .msg.assistant .bubble ul,.msg.assistant .bubble ol { padding-left:20px; margin:6px 0; }
-        .msg.assistant .bubble strong { color:#e94560; }
-        .copy-btn { position:absolute; top:6px; right:6px; background:#333; color:#ccc; border:none; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; }
-        .copy-btn:hover { background:#555; }
-        .label { font-size:11px; color:#888; margin-bottom:4px; text-transform:uppercase; letter-spacing:1px; }
-        #inputBar { border-top:1px solid #222; padding:12px; background:#111; }
-        #inputBar form { max-width:800px; margin:0 auto; display:flex; gap:8px; }
-        #inputBar textarea { flex:1; background:#1a1a2e; color:#e0e0e0; border:1px solid #333; border-radius:10px; padding:12px; font-size:15px; resize:none; font-family:inherit; outline:none; }
-        #inputBar textarea:focus { border-color:#e94560; }
-        #inputBar button { background:#e94560; color:#fff; border:none; border-radius:10px; padding:0 20px; cursor:pointer; font-size:15px; }
-        #inputBar button:disabled { opacity:.4; cursor:default; }
-        #inputBar button:hover:not(:disabled) { background:#c73650; }
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{height:100%;background:#f1f3f5;color:#1d2125;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif}
+        body{display:flex;flex-direction:column}
+
+        /* Moodle-style top nav */
+        header{background:#fff;border-bottom:1px solid #e5e7eb;padding:0 24px;display:flex;align-items:center;justify-content:center;height:36px}
+
+        /* Chat area */
+        #chat{flex:1;overflow-y:auto;padding:20px 24px;background:#f1f3f5}
+
+        /* Message cards */
+        .msg{max-width:860px;margin:0 auto 16px}
+
+        /* User message */
+        .msg.user .card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;border-left:4px solid #f98012}
+        .msg.user .lbl{display:none}
+
+        /* Assistant message */
+        .msg.bot .card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px 24px;border-left:4px solid #0f6cbf;line-height:1.75;position:relative}
+        .msg.bot .lbl{display:flex;align-items:center;justify-content:flex-end;margin-bottom:6px}
+        .msg.bot .lbl span{display:none}
+
+        /* Copy entire response button */
+        .copy-all{background:#f1f3f5;color:#6a737d;border:1px solid #d1d5db;border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;transition:all .15s}
+        .copy-all:hover{background:#0f6cbf;color:#fff;border-color:#0f6cbf}
+
+        /* Typography inside bot messages */
+        .msg.bot .card p{margin:8px 0;color:#333}
+        .msg.bot .card h1,.msg.bot .card h2,.msg.bot .card h3,.msg.bot .card h4{color:#0f6cbf;margin:16px 0 8px;border-bottom:1px solid #e5e7eb;padding-bottom:6px}
+        .msg.bot .card h1{font-size:20px}.msg.bot .card h2{font-size:17px}.msg.bot .card h3{font-size:15px}
+        .msg.bot .card strong{color:#d63384}
+        .msg.bot .card em{color:#6a737d}
+        .msg.bot .card ul,.msg.bot .card ol{padding-left:24px;margin:8px 0}
+        .msg.bot .card li{margin:4px 0;color:#333}
+        .msg.bot .card hr{border:none;border-top:1px solid #e5e7eb;margin:12px 0}
+
+        /* Inline code */
+        .msg.bot .card p code,.msg.bot .card li code{background:#f6f8fa;border:1px solid #e5e7eb;padding:1px 5px;border-radius:4px;color:#d63384;font-size:12px;font-family:'Cascadia Code','Fira Code','Consolas',monospace}
+
+        /* Code blocks */
+        .msg.bot .card pre{margin:12px 0;border-radius:6px;overflow:hidden;position:relative;border:1px solid #d1d5db}
+        .msg.bot .card pre code{display:block;padding:14px;background:#f6f8fa;overflow-x:auto;line-height:1.5;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;color:#1d2125}
+
+        /* Copy button on code blocks */
+        .cp{position:absolute;top:6px;right:6px;background:#fff;color:#6a737d;border:1px solid #d1d5db;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;font-weight:600;z-index:2;transition:all .15s}
+        .cp:hover{background:#0f6cbf;color:#fff;border-color:#0f6cbf}
+
+        /* Tables */
+        .msg.bot .card table{border-collapse:collapse;margin:10px 0;width:100%;font-size:13px}
+        .msg.bot .card th{background:#f6f8fa;border:1px solid #d1d5db;padding:8px 12px;text-align:left;font-weight:600;color:#0f6cbf}
+        .msg.bot .card td{border:1px solid #d1d5db;padding:8px 12px}
+
+        /* Thinking animation */
+        .wait{color:#6a737d;font-style:italic}
+        .wait::after{content:'';animation:dots 1.5s infinite}
+        @keyframes dots{0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}}
+
+        /* Input bar */
+        #bar{border-top:2px solid #e5e7eb;padding:14px 24px;background:#fff}
+        #bar form{max-width:860px;margin:0 auto;display:flex;gap:10px;align-items:flex-end}
+        #bar textarea{flex:1;background:#f6f8fa;color:#1d2125;border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;font-size:14px;resize:none;font-family:inherit;outline:none;transition:border-color .2s}
+        #bar textarea:focus{border-color:#0f6cbf;box-shadow:0 0 0 3px rgba(15,108,191,.12)}
+        #bar textarea::placeholder{color:#9ca3af}
+        #bar button{background:#f98012;color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:14px;font-weight:700;transition:background .2s;white-space:nowrap}
+        #bar button:hover:not(:disabled){background:#e06d00}
+        #bar button:disabled{opacity:.5;cursor:default}
+
+        /* Scrollbar */
+        #chat::-webkit-scrollbar{width:7px}
+        #chat::-webkit-scrollbar-track{background:#f1f3f5}
+        #chat::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:4px}
+        #chat::-webkit-scrollbar-thumb:hover{background:#9ca3af}
     </style>
 </head>
 <body>
+    <header>
+        <span style="font-size:13px;color:#9ca3af">Llama 3.3</span>
+    </header>
+
     <div id="chat"></div>
-    <div id="inputBar">
+
+    <div id="bar">
         <form id="f">
-            <textarea id="q" rows="2" placeholder="Ask about SQL, PL/SQL, or describe a database system to build..."></textarea>
+            <textarea id="q" rows="2" placeholder="Ask about OS, C programming, Oracle SQL/PL-SQL, React + Vite..."></textarea>
             <button type="submit" id="s">Send</button>
         </form>
     </div>
-    <script>
-        const chat=document.getElementById("chat"),form=document.getElementById("f"),q=document.getElementById("q"),s=document.getElementById("s");
-        let messages=[],streaming=false;
-        marked.setOptions({highlight:(code,lang)=>{try{return lang&&hljs.getLanguage(lang)?hljs.highlight(code,{language:lang}).value:hljs.highlightAuto(code).value}catch{return code}},breaks:true,gfm:true});
-        function render(md){let h=marked.parse(md);h=h.replace(/<pre><code([^>]*)>/g,'<div style="position:relative"><button class="copy-btn" onclick="copyC(this)">Copy</button><pre><code$1>');h=h.replace(/<\/code><\/pre>/g,'</code></pre></div>');return h}
-        function copyC(b){const c=b.parentElement.querySelector("code").textContent;navigator.clipboard.writeText(c).then(()=>{b.textContent="Copied!";setTimeout(()=>b.textContent="Copy",1500)})}
-        function addMsg(role,content){const d=document.createElement("div");d.className="msg "+role;const l=document.createElement("div");l.className="label";l.textContent=role==="user"?"You":"Assistant";const b=document.createElement("div");b.className="bubble";if(role==="user")b.textContent=content;else b.innerHTML=render(content);d.appendChild(l);d.appendChild(b);chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return b}
-        async function send(text){if(streaming)return;streaming=true;s.disabled=true;messages.push({role:"user",content:text});addMsg("user",text);const bubble=addMsg("assistant","");let full="";try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages})});const reader=r.body.getReader();const dec=new TextDecoder();let buf="";while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split("\n");buf=lines.pop();for(const line of lines){if(!line.startsWith("data: "))continue;const d=line.slice(6).trim();if(d==="[DONE]")break;try{const p=JSON.parse(d);if(p.error){full+="\n\n**Error:** "+p.error;break}const delta=p.choices?.[0]?.delta?.content;if(delta){full+=delta;bubble.innerHTML=render(full);chat.scrollTop=chat.scrollHeight}}catch{}}}messages.push({role:"assistant",content:full})}catch(e){bubble.innerHTML=render("**Error:** "+e.message)}streaming=false;s.disabled=false;q.focus()}
-        form.addEventListener("submit",e=>{e.preventDefault();const t=q.value.trim();if(!t)return;q.value="";q.style.height="auto";send(t)});
-        q.addEventListener("input",()=>{q.style.height="auto";q.style.height=Math.min(q.scrollHeight,150)+"px"});
-        q.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();form.dispatchEvent(new Event("submit"))}});
-    </script>
+
+<script>
+var chat=document.getElementById("chat"),form=document.getElementById("f"),q=document.getElementById("q"),s=document.getElementById("s");
+var msgs=[],busy=false;
+
+marked.setOptions({highlight:function(code,lang){try{if(lang&&hljs.getLanguage(lang))return hljs.highlight(code,{language:lang}).value;return hljs.highlightAuto(code).value}catch(e){return code}},breaks:true,gfm:true});
+
+function md(t){
+    var h=marked.parse(t);
+    h=h.replace(/<pre><code([^>]*)>/g,'<button class="cp" onclick="cpCode(this)">Copy</button><pre><code$1>');
+    return h;
+}
+
+function cpCode(b){
+    var code=b.nextElementSibling.querySelector("code")||b.parentElement.querySelector("code");
+    if(!code)return;
+    var ta=document.createElement("textarea");
+    ta.value=code.textContent;
+    document.body.appendChild(ta);ta.select();
+    document.execCommand("copy");document.body.removeChild(ta);
+    b.textContent="Copied!";b.style.background="#0f6cbf";b.style.color="#fff";
+    setTimeout(function(){b.textContent="Copy";b.style.background="#fff";b.style.color="#6a737d"},1500);
+}
+
+function cpAll(b){
+    var card=b.closest(".card");
+    if(!card)return;
+    // Get plain text content (strip HTML)
+    var temp=document.createElement("div");
+    temp.innerHTML=card.innerHTML;
+    // Remove the label and copy button from the cloned content
+    var btns=temp.querySelectorAll(".copy-all,.cp");
+    for(var i=0;i<btns.length;i++)btns[i].remove();
+    var lbl=temp.querySelector(".lbl");if(lbl)lbl.remove();
+
+    var ta=document.createElement("textarea");
+    ta.value=temp.textContent.trim();
+    document.body.appendChild(ta);ta.select();
+    document.execCommand("copy");document.body.removeChild(ta);
+    b.textContent="Copied!";b.style.background="#0f6cbf";b.style.color="#fff";
+    setTimeout(function(){b.textContent="Copy Response";b.style.background="#f1f3f5";b.style.color="#6a737d"},1500);
+}
+
+function add(role,text){
+    var d=document.createElement("div");d.className="msg "+(role==="user"?"user":"bot");
+    var card=document.createElement("div");card.className="card";
+
+    if(role==="user"){
+        var lbl=document.createElement("div");lbl.className="lbl";lbl.textContent="You";
+        card.appendChild(lbl);
+        var p=document.createElement("div");p.textContent=text;card.appendChild(p);
+    } else {
+        var lbl=document.createElement("div");lbl.className="lbl";
+        var lblText=document.createElement("span");lblText.textContent="Assistant";
+        lbl.appendChild(lblText);
+        if(text){
+            var cpBtn=document.createElement("button");cpBtn.className="copy-all";cpBtn.textContent="Copy Response";
+            cpBtn.onclick=function(){cpAll(this)};
+            lbl.appendChild(cpBtn);
+        }
+        card.appendChild(lbl);
+        var body=document.createElement("div");body.className="body";
+        if(text){body.innerHTML=md(text)}else{body.innerHTML='<span class="wait">Thinking</span>'}
+        card.appendChild(body);
+    }
+
+    d.appendChild(card);chat.appendChild(d);
+    chat.scrollTop=chat.scrollHeight;
+    return card;
+}
+
+function send(text){
+    if(busy)return;
+    busy=true;s.disabled=true;
+    msgs.push({role:"user",content:text});
+    add("user",text);
+    var card=add("assistant","");
+
+    var xhr=new XMLHttpRequest();
+    xhr.open("POST","/chat",true);
+    xhr.setRequestHeader("Content-Type","application/json");
+    xhr.onload=function(){
+        try{
+            var data=JSON.parse(xhr.responseText);
+            var body=card.querySelector(".body");
+            var lbl=card.querySelector(".lbl");
+            if(data.error){
+                body.innerHTML=md("**Error:** "+data.error);
+            }else{
+                body.innerHTML=md(data.content);
+                msgs.push({role:"assistant",content:data.content});
+                // Add copy button after content loads
+                if(!lbl.querySelector(".copy-all")){
+                    var cpBtn=document.createElement("button");cpBtn.className="copy-all";cpBtn.textContent="Copy Response";
+                    cpBtn.onclick=function(){cpAll(this)};
+                    lbl.appendChild(cpBtn);
+                }
+            }
+        }catch(e){
+            card.querySelector(".body").innerHTML=md("**Error:** Failed to parse response");
+        }
+        busy=false;s.disabled=false;q.focus();
+        chat.scrollTop=chat.scrollHeight;
+    };
+    xhr.onerror=function(){
+        card.querySelector(".body").innerHTML=md("**Error:** Could not connect to server.");
+        busy=false;s.disabled=false;q.focus();
+    };
+    xhr.timeout=120000;
+    xhr.ontimeout=function(){
+        card.querySelector(".body").innerHTML=md("**Error:** Request timed out. Try again.");
+        busy=false;s.disabled=false;q.focus();
+    };
+    xhr.send(JSON.stringify({messages:msgs}));
+}
+
+form.addEventListener("submit",function(e){
+    e.preventDefault();
+    var t=q.value.trim();if(!t)return;
+    q.value="";q.style.height="auto";send(t);
+});
+q.addEventListener("input",function(){q.style.height="auto";q.style.height=Math.min(q.scrollHeight,150)+"px"});
+q.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();form.dispatchEvent(new Event("submit"))}});
+</script>
 </body>
 </html>
