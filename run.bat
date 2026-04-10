@@ -9,29 +9,83 @@ echo ====================================================
 echo.
 
 :: -------------------------------------------------------
-:: 1. Check if Python is installed
+:: 1. Check if Python is installed, if not install it
 :: -------------------------------------------------------
 echo [1/4] Checking Python installation...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
-    echo   [ERROR] Python is NOT installed or not on PATH.
+    echo   Python is NOT installed. Installing now...
     echo.
-    echo   Fix: Download Python from https://www.python.org/downloads/
-    echo        During install, CHECK the box "Add Python to PATH"
-    echo        Then re-run this file.
-    echo.
-    pause
-    exit /b 1
+
+    :: Check if winget is available
+    winget --version >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo   Installing Python via winget...
+        winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements --silent
+        if %errorlevel% neq 0 (
+            echo   [ERROR] winget install failed. Trying manual download...
+            goto :manual_install
+        )
+        goto :refresh_path
+    )
+
+    :manual_install
+    :: Download Python installer using PowerShell
+    echo   Downloading Python installer...
+    powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe' -OutFile '%TEMP%\python_installer.exe'}" 2>nul
+
+    if not exist "%TEMP%\python_installer.exe" (
+        echo.
+        echo   [ERROR] Failed to download Python.
+        echo   Please download manually from https://www.python.org/downloads/
+        echo   Make sure to check "Add Python to PATH" during install.
+        echo.
+        pause
+        exit /b 1
+    )
+
+    echo   Running Python installer (this may take a minute)...
+    "%TEMP%\python_installer.exe" /quiet InstallAllUsers=1 PrependPath=1 Include_pip=1 Include_test=0
+    if %errorlevel% neq 0 (
+        echo.
+        echo   [ERROR] Silent install failed. Launching interactive installer...
+        echo   IMPORTANT: Check "Add Python to PATH" at the bottom of the installer!
+        echo.
+        "%TEMP%\python_installer.exe"
+    )
+    del "%TEMP%\python_installer.exe" 2>nul
+
+    :refresh_path
+    :: Refresh PATH so python is available in this session
+    echo   Refreshing PATH...
+    for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYSPATH=%%b"
+    for /f "tokens=2*" %%a in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USRPATH=%%b"
+    set "PATH=%SYSPATH%;%USRPATH%"
+
+    :: Verify python works now
+    python --version >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo.
+        echo   [ERROR] Python installed but not found on PATH.
+        echo   Please close this window, open a NEW command prompt, and run this .bat again.
+        echo.
+        pause
+        exit /b 1
+    )
 )
-for /f "tokens=2" %%v in ('python --version 2^>^&1') do echo        Found Python %%v
+for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo        Found %%v
 echo.
 
 :: -------------------------------------------------------
-:: 2. Upgrade pip silently
+:: 2. Upgrade pip
 :: -------------------------------------------------------
 echo [2/4] Updating pip...
 python -m pip install --upgrade pip --quiet >nul 2>&1
+if %errorlevel% neq 0 (
+    python -m ensurepip --quiet >nul 2>&1
+    python -m pip install --upgrade pip --quiet >nul 2>&1
+)
 echo        Done.
 echo.
 
@@ -39,15 +93,6 @@ echo.
 :: 3. Install all dependencies
 :: -------------------------------------------------------
 echo [3/4] Installing dependencies...
-
-:: Create requirements file on the fly
-echo.>"%~dp0\requirements.txt"
-(
-echo # CS Tutor Dependencies - auto generated
-) > "%~dp0\requirements.txt"
-
-:: The app uses only Python standard library (http.server, urllib, json)
-:: No pip packages needed! But install these just in case user extends it:
 python -m pip install --quiet requests 2>nul
 echo        All dependencies installed.
 echo.
@@ -58,20 +103,13 @@ echo.
 echo [4/4] Starting server...
 echo.
 
-:: Get ALL local network IPs (WiFi + Ethernet)
+:: Get the local network IP
 set LOCAL_IP=
-set IP_COUNT=0
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v "127.0.0"') do (
-    set "TEMP_IP=%%a"
-    call set "TEMP_IP=%%TEMP_IP: =%%"
-    if not defined LOCAL_IP call set "LOCAL_IP=%%TEMP_IP%%"
-    set /a IP_COUNT+=1
+    if not defined LOCAL_IP set "LOCAL_IP=%%a"
 )
+if defined LOCAL_IP set "LOCAL_IP=%LOCAL_IP: =%"
 
-echo ====================================================
-echo.
-echo   CS Tutor is RUNNING!
-echo.
 echo ====================================================
 echo.
 echo   YOUR APP IS LIVE AT:
